@@ -137,7 +137,7 @@ Pods created:
 ---
 
 ## Step 5: Schema Creation
-
+File: k8s/.yaml
 SQL:
 CREATE DATABASE demo;
 
@@ -230,10 +230,3 @@ minikube delete
 
 ---
 
-## Final Status
-
-- All demo objectives completed
-- Data ingestion successful
-- Persistence validated
-- Failure recovery proven
-- Ready for technical discussion

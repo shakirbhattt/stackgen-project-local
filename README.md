@@ -159,7 +159,7 @@ ENGINE = Distributed(cluster, demo, readings_local, rand());
 
 ## Step 6: Data Ingestion
 
-Script: scripts/ingest-final.sh
+Script: scripts/ingest.sh
 
 - Generates 10,000 sensor readings
 - Inserts data via ClickHouse HTTP interface (port 8123)

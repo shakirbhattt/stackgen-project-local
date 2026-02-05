@@ -215,11 +215,10 @@ These were intentionally excluded from this demo to keep it simple and stable.
 stackgen-clickhouse/
 - README.md
 - k8s/
-  - 01-storageclass.yaml
-  - 02-chi-cluster.yaml
-  - 03-schema.yaml
+  - storageclass.yaml
+  - chi-cluster.yaml
 - scripts/
-  - ingest-final.sh
+  - ingest.sh
 - .gitignore
 
 ---

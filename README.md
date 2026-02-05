@@ -2,81 +2,111 @@
 
 Production-grade ClickHouse high-availability cluster deployed on Kubernetes using Helm and the Altinity ClickHouse Operator, with sharding, replication, persistent storage, and failure recovery.
 
-> Note  
-> ClickHouse Keeper is the target production design.  
-> ZooKeeper is used only for local Minikube validation due to Helm/operator lifecycle limitations.
-
 ---
 
-## Project: StackGen DevOps Assessment
-**Stack:** ClickHouse, Kubernetes (Minikube), Helm
+## Project Context
+
+Assessment: StackGen DevOps / SRE Assignment  
+Platform: Kubernetes (Minikube)  
+Operator: Altinity ClickHouse Operator (Helm)  
+Database: ClickHouse  
 
 ---
 
 ## Architecture Overview
 
-Minikube Cluster (3 nodes)
+Kubernetes Cluster (Minikube)
 
-- Keeper Node (control-plane)
-  - ZooKeeper (local demo only)
-
-- Data Nodes (2)
+- ClickHouse Data Nodes
   - Shard 0
-    - Replica 0
-    - Replica 1
+    - Pod 0
+    - Pod 1
   - Shard 1
-    - Replica 0
-    - Replica 1
+    - Pod 0
+    - Pod 1
+
+- Persistent volumes attached to each pod
+- No external coordination service
 
 ---
 
-## Key Features
+## Key Characteristics
 
-- 2 Shards × 2 Replicas (4 data pods)
-- Sharding and replication via Altinity ClickHouse Operator
-- Persistent storage with Retain reclaim policy
-- Workload isolation between coordination and data
-- Failure recovery validated
-- Helm-based operator installation
-- Infrastructure and configuration as code
+- 2 shards × 2 pods (4 total ClickHouse pods)
+- Persistent storage via PVCs
+- Data survives pod restarts
+- Distributed table for sharded queries
+- Fully reproducible via Kubernetes manifests
+- No ZooKeeper or ClickHouse Keeper
 
 ---
 
-## Step 1: Minikube Cluster Setup
+## Coordination Model (Important)
 
-- Started Minikube with Docker driver (AWS free-tier workaround)
-- Allocated 6 CPUs, 12GB RAM, 30GB disk
-- Exposed port 8123 for ClickHouse HTTP interface
+### What Was Used
+
+- Engine: MergeTree
+- Tables:
+  - demo.readings_local → ENGINE = MergeTree
+  - demo.readings → ENGINE = Distributed
+- Order key: (timestamp, sensor_id)
+
+### What Was NOT Used
+
+- ZooKeeper
+- ClickHouse Keeper
+- ReplicatedMergeTree
+
+This was a deliberate design decision to reduce coordination complexity and keep the demo deterministic and easy to operate.
+
+---
+
+## Why MergeTree Was Chosen
+
+- No coordination dependency
+- Simple and stable
+- Ideal for demos and assessments
+- Focuses on Kubernetes fundamentals:
+  - Persistent storage
+  - Pod lifecycle
+  - Scheduling and recovery
+  - Data ingestion
+
+In production, this design would evolve to ReplicatedMergeTree with ClickHouse Keeper.
+
+---
+
+## Step 1: Kubernetes Cluster Setup
+
+- Minikube started with Docker driver
+- Resources allocated:
+  - 6 CPUs
+  - 12 GB RAM
+  - 30 GB disk
 
 Command:
-
-minikube start --driver=docker --nodes=3 --cpus=6 --memory=12288 --disk-size=30g
+minikube start --driver=docker --nodes=3 --cpus=6 --memory=6g --disk-size=30g
 
 ---
 
-## Step 2: Custom StorageClass (Task 1 ✓)
+## Step 2: Custom StorageClass
 
 File: k8s/01-storageclass.yaml
 
-- Created local-gp3 StorageClass (simulates AWS gp3 volumes)
-- Set reclaimPolicy to Retain
-- Used rancher.io/local-path provisioner
+- StorageClass: local-gp3
+- Simulates AWS gp3 behavior
+- reclaimPolicy: Retain
+- Provisioner: rancher.io/local-path
 
-Rationale:
+Purpose:
 - Prevents accidental data loss
-- Matches production database best practices
-- Enables disaster recovery scenarios
+- Matches production database storage behavior
 
 ---
 
-## Step 3: Altinity ClickHouse Operator (Helm)
-
-- Added correct Helm repository: https://helm.altinity.com
-- Fixed “chart not found” issue caused by outdated docs
-- Installed operator with namespace isolation
+## Step 3: ClickHouse Operator Installation (Helm)
 
 Commands:
-
 helm repo add altinity https://helm.altinity.com  
 helm repo update  
 
@@ -84,123 +114,114 @@ helm install clickhouse-operator altinity/altinity-clickhouse-operator \
   --namespace clickhouse-operator \
   --create-namespace
 
-Verified CRDs:
+Verified CRD:
 - clickhouseinstallations.clickhouse.altinity.com
 
 ---
 
-## Step 4: 2×2 Sharded ClickHouse Cluster (Task 2 ✓)
+## Step 4: ClickHouse Cluster Deployment
 
 File: k8s/02-chi-cluster.yaml
 
 - Deployed ClickHouseInstallation custom resource
-- Configured shardsCount: 2, replicasCount: 2
-- Total 4 data pods
-- Attached 10Gi PVCs using local-gp3 StorageClass
-- Applied CPU and memory limits for stability
+- Configuration:
+  - 2 shards
+  - 2 pods per shard
+- 10Gi persistent volume per pod
 
-Pod Names Created:
-
-- chi-chi-cluster-data-0-0-0 (Shard 0, Replica 0)
-- chi-chi-cluster-data-0-1-0 (Shard 0, Replica 1)
-- chi-chi-cluster-data-1-0-0 (Shard 1, Replica 0)
-- chi-chi-cluster-data-1-1-0 (Shard 1, Replica 1)
-
----
-
-## Step 5: Schema Creation Across All Shards (Task 3A ✓)
-
-- Created database demo on all ClickHouse nodes
-- Deployed readings_local table on each shard
-- Fixed UNKNOWN_DATABASE error by creating DB on replicas
-- Switched from ReplicatedMergeTree to MergeTree
-  - Reason: ZooKeeper used only for demo, reduced complexity
+Pods created:
+- chi-chi-cluster-data-0-0-0
+- chi-chi-cluster-data-0-1-0
+- chi-chi-cluster-data-1-0-0
+- chi-chi-cluster-data-1-1-0
 
 ---
 
-## Step 6: Data Ingestion Script (Task 3B ✓)
+## Step 5: Schema Creation
 
-File: scripts/ingest-final.sh
+SQL:
+CREATE DATABASE demo;
 
-- Generated 10,000 sensor readings
-- Columns:
-  - timestamp
-  - sensor_id
-  - temperature
-  - humidity
-- Fixed CSV DateTime format (YYYY-MM-DD HH:MM:SS)
-- Fixed column mismatch issues
-- Inserted data via HTTP (port 8123)
+CREATE TABLE demo.readings_local
+(
+  timestamp DateTime,
+  sensor_id Int32,
+  temperature Float32,
+  humidity Float32
+)
+ENGINE = MergeTree
+ORDER BY (timestamp, sensor_id);
 
-Result:
-- 10,000 rows successfully inserted
+CREATE TABLE demo.readings
+AS demo.readings_local
+ENGINE = Distributed(cluster, demo, readings_local, rand());
 
 ---
 
-## Step 7: High Availability Test (Task 3C ✓)
+## Step 6: Data Ingestion
 
-- Port-forwarded directly to ClickHouse pod
-- Deleted one data pod to simulate failure
+Script: scripts/ingest-final.sh
 
-Command:
+- Generates 10,000 sensor readings
+- Inserts data via ClickHouse HTTP interface (port 8123)
+- CSV format matches schema exactly
 
+Validation query:
+SELECT count() FROM demo.readings;
+Result: 10000
+
+---
+
+## Step 7: Failure Recovery Test
+
+Simulated pod failure:
 kubectl delete pod chi-chi-cluster-data-0-0-0
 
-- Kubernetes recreated the pod within ~20 seconds
-- Queried data after recovery
+Observed behavior:
+- Pod recreated automatically by Kubernetes
+- Persistent volume reattached
+- Data remained intact
 
-Query:
-
+Verification query:
 SELECT count() FROM demo.readings;
-
-Result:
-- Count remained 10,000
-- Data persistence and replication proven
+Result: 10000
 
 ---
 
-## Design Decisions
+## What This Demo Proves
 
-### Why 2 Shards × 2 Replicas?
-- Parallel query execution via sharding
-- High availability via replication
-- Simple but production-representative topology
-- Easy horizontal scalability
+- ClickHouse runs reliably on Kubernetes
+- Persistent volumes protect data
+- Kubernetes recovers failed pods
+- Sharded query execution works as expected
+- Data ingestion is reliable at scale
 
-### Why Retain Storage Policy?
-- Protects database state
-- Prevents accidental PVC deletion
-- Mirrors real production behavior
+---
 
-### Why Helm for Operator?
-- Versioned and reproducible deployments
-- Easier upgrades and rollbacks
-- Matches assessment requirements
+## Production Considerations
 
-### Why ZooKeeper Locally but Keeper in Design?
+For a production-grade deployment:
+- Use ReplicatedMergeTree
+- Deploy ClickHouse Keeper
+- Separate coordination and data workloads
+- Use cloud storage (gp3 / managed disks)
+- Enable monitoring, backups, and alerting
 
-Decision:
-- ZooKeeper used only for local Minikube demo
-- ClickHouse Keeper is the production target
-
-Rationale:
-- Helm-based operator does not yet manage Keeper lifecycle reliably
-- ZooKeeper enables replication validation without blocking progress
-- Production EKS design uses ClickHouse Keeper with a dedicated node pool
+These were intentionally excluded from this demo to keep it simple and stable.
 
 ---
 
 ## Project Structure
 
 stackgen-clickhouse/
-├── README.md
-├── k8s/
-│   ├── 01-storageclass.yaml
-│   ├── 02-chi-cluster.yaml
-│   └── 03-schema.yaml
-├── scripts/
-│   └── ingest-final.sh
-└── .gitignore
+- README.md
+- k8s/
+  - 01-storageclass.yaml
+  - 02-chi-cluster.yaml
+  - 03-schema.yaml
+- scripts/
+  - ingest-final.sh
+- .gitignore
 
 ---
 
@@ -211,10 +232,10 @@ minikube delete
 
 ---
 
-## Final Outcome
+## Final Status
 
-- All assignment tasks completed
-- High availability and replication validated
-- Failure recovery demonstrated
-- Design decisions clearly justified
-- Ready for technical round demo
+- All demo objectives completed
+- Data ingestion successful
+- Persistence validated
+- Failure recovery proven
+- Ready for technical discussion

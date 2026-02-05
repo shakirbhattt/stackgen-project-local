@@ -120,7 +120,7 @@ Verified CRD:
 
 ## Step 4: ClickHouse Cluster Deployment
 
-File: k8s/chi-cluster.yaml
+File: k8s/chi-complete.yaml
 
 - Deployed ClickHouseInstallation custom resource
 - Configuration:

@@ -37,7 +37,6 @@ Kubernetes Cluster (Minikube)
 - Data survives pod restarts
 - Distributed table for sharded queries
 - Fully reproducible via Kubernetes manifests
-- No ZooKeeper or ClickHouse Keeper
 
 ---
 

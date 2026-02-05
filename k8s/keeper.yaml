@@ -1,0 +1,23 @@
+apiVersion: clickhouse-keeper.altinity.com/v1          # ← FIXED GROUP
+kind: ClickHouseKeeperInstallation                      # ← CORRECT KIND  
+metadata:
+  name: chi-keeper
+  namespace: clickhouse
+spec:
+  image: clickhouse/clickhouse-keeper:latest
+  replicas: 1
+  nodeSelector:
+    nodepool: keeper
+  tolerations:
+  - key: "keeper"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+  volumeClaimTemplate:
+    spec:
+      storageClassName: local-gp3
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+

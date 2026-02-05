@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stackgen-schema
+  namespace: stackgen
+data:
+  init.sql: |
+    -- Create database
+    CREATE DATABASE IF NOT EXISTS stackgen;
+
+    -- Create local ReplicatedMergeTree tables on ALL shards (DDL)
+    CREATE TABLE IF NOT EXISTS stackgen.readings_local ON CLUSTER stackgen (
+      timestamp DateTime,
+      sensor_id UInt32,
+      temperature Float32,
+      humidity Float32
+    ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/stackgen/readings_local', '{replica}')
+    ORDER BY (timestamp, sensor_id);
+
+    -- Create distributed table (query ALL shards)
+    CREATE TABLE IF NOT EXISTS stackgen.readings ON CLUSTER stackgen AS stackgen.readings_local
+    ENGINE = Distributed('stackgen', stackgen, readings_local, rand());
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stackgen-init-tables
+  namespace: stackgen
+spec:
+  template:
+    spec:
+      serviceAccountName: clickhouse-operator
+      containers:
+      - name: init
+        image: clickhouse/clickhouse-server:26.1
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - |
+          clickhouse-client --host chi-stackgen-cluster-stackgen-0-0 --query-file /schema/init.sql
+          echo "Schema initialization complete"
+        volumeMounts:
+        - name: schema
+          mountPath: /schema
+      volumes:
+      - name: schema
+        configMap:
+          name: stackgen-schema
+      restartPolicy: OnFailure
+  backoffLimit: 3

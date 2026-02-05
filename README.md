@@ -137,7 +137,7 @@ Pods created:
 ---
 
 ## Step 5: Schema Creation
-File: k8s/.yaml
+File: k8s/stackgen-tables.yaml
 SQL:
 CREATE DATABASE demo;
 

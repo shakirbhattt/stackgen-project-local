@@ -84,13 +84,13 @@ In production, this design would evolve to ReplicatedMergeTree with ClickHouse K
   - 30 GB disk
 
 Command:
-minikube start --driver=docker --nodes=3 --cpus=6 --memory=6g --disk-size=30g
+minikube start --driver=docker --nodes=3 --cpus=6 --memory=12g --disk-size=30g
 
 ---
 
 ## Step 2: Custom StorageClass
 
-File: k8s/01-storageclass.yaml
+File: k8s/storageclass.yaml
 
 - StorageClass: local-gp3
 - Simulates AWS gp3 behavior
@@ -120,7 +120,7 @@ Verified CRD:
 
 ## Step 4: ClickHouse Cluster Deployment
 
-File: k8s/02-chi-cluster.yaml
+File: k8s/chi-cluster.yaml
 
 - Deployed ClickHouseInstallation custom resource
 - Configuration:

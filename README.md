@@ -84,7 +84,7 @@ In production, this design would evolve to ReplicatedMergeTree with ClickHouse K
   - 30 GB disk
 
 Command:
-minikube start --driver=docker --nodes=3 --cpus=6 --memory=12g --disk-size=30g
+minikube start --driver=docker --nodes=3 --cpus=6 --memory=6g --disk-size=30g
 
 ---
 
